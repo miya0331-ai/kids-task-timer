@@ -162,13 +162,18 @@ export default function KidsPage() {
         </div>
       </div>
 
-      {allDone ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div className="text-8xl">🌟</div>
-          <div className="text-3xl font-bold text-orange-600">ぜんぶ できた！</div>
-          <div className="text-gray-500">すごいね！</div>
+      {allDone && (
+        <div className="mb-4 p-6 bg-white rounded-3xl shadow flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="text-6xl">🌟</div>
+          <div className="text-center sm:text-left">
+            <div className="text-2xl sm:text-3xl font-bold text-orange-600">
+              ぜんぶ できた！
+            </div>
+            <div className="text-gray-500 text-sm">すごいね！</div>
+          </div>
         </div>
-      ) : (
+      )}
+      {(
         <div className="flex-1 grid md:grid-cols-[1fr_auto_1fr] gap-4">
           <section className="bg-white rounded-3xl p-4 shadow flex flex-col min-h-0">
             <h2 className="text-lg font-bold text-gray-600 mb-2 flex items-center gap-2">
@@ -195,7 +200,14 @@ export default function KidsPage() {
             </div>
           </section>
 
-          <section className="bg-white rounded-3xl p-6 shadow flex flex-col items-center justify-center gap-4">
+          <section className="bg-white rounded-3xl p-6 shadow flex flex-col items-center justify-center gap-4 min-w-[280px]">
+            {!current && (
+              <div className="text-center text-gray-400">
+                <div className="text-6xl mb-2">🎉</div>
+                <div className="text-sm">ぜんぶ おわったよ</div>
+                <div className="text-xs mt-2">右の「戻す」で やりなおせるよ</div>
+              </div>
+            )}
             {current && (
               <>
                 <TaskIcon task={current} big />
@@ -223,10 +235,9 @@ export default function KidsPage() {
             </h2>
             <div className="flex-1 overflow-y-auto space-y-2">
               {done.map((t) => (
-                <button
+                <div
                   key={t.id}
-                  onClick={() => undo(t)}
-                  className="w-full p-3 rounded-2xl flex items-center gap-3 bg-green-50 opacity-70"
+                  className="w-full p-3 rounded-2xl flex items-center gap-3 bg-green-50"
                 >
                   <TaskIcon task={t} />
                   <div className="flex-1 text-left">
@@ -234,8 +245,15 @@ export default function KidsPage() {
                       {t.title || "やること"}
                     </div>
                   </div>
-                  <div className="text-2xl">✓</div>
-                </button>
+                  <button
+                    onClick={() => undo(t)}
+                    aria-label="やることに戻す"
+                    className="shrink-0 px-3 py-2 bg-white border-2 border-orange-300 text-orange-600 rounded-xl font-bold text-sm active:scale-95 flex items-center gap-1"
+                  >
+                    <span className="text-lg leading-none">↶</span>
+                    <span>戻す</span>
+                  </button>
+                </div>
               ))}
             </div>
           </section>

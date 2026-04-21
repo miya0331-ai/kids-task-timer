@@ -5,6 +5,22 @@ import { useRouter } from "next/navigation";
 import { getFamily } from "@/lib/family";
 import type { RoutineWithTasks, Task, ScheduleType } from "@/lib/types";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -59,6 +75,35 @@ export default function RoutineEditor({
     await fetch(`/api/routines/${id}`, { method: "DELETE" });
     router.replace("/parent");
   }
+
+  async function reorderTasks(e: DragEndEvent) {
+    if (!routine) return;
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = routine.tasks.findIndex((t) => t.id === active.id);
+    const newIndex = routine.tasks.findIndex((t) => t.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const reordered = arrayMove(routine.tasks, oldIndex, newIndex).map(
+      (t, i) => ({ ...t, sort_order: i })
+    );
+    setRoutine({ ...routine, tasks: reordered });
+    await Promise.all(
+      reordered.map((t) =>
+        fetch(`/api/tasks/${t.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sort_order: t.sort_order }),
+        })
+      )
+    );
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    })
+  );
 
   if (!routine) return <div className="p-8 text-gray-400">よみこみ中…</div>;
 
@@ -147,11 +192,32 @@ export default function RoutineEditor({
         </div>
       </div>
 
-      <h2 className="mt-6 mb-3 font-bold text-orange-700">やること</h2>
+      <h2 className="mt-6 mb-3 font-bold text-orange-700">
+        やること{" "}
+        <span className="text-xs font-normal text-gray-400">
+          （長押しで並べ替え）
+        </span>
+      </h2>
       <div className="space-y-2">
-        {routine.tasks.map((t) => (
-          <TaskRow key={t.id} task={t} familyId={family?.id || ""} onChange={refresh} />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={reorderTasks}
+        >
+          <SortableContext
+            items={routine.tasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {routine.tasks.map((t) => (
+              <SortableTaskRow
+                key={t.id}
+                task={t}
+                familyId={family?.id || ""}
+                onChange={refresh}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
         <button
           onClick={addTask}
           className="w-full p-4 border-2 border-dashed border-orange-300 text-orange-600 rounded-2xl font-bold"
@@ -170,14 +236,36 @@ export default function RoutineEditor({
   );
 }
 
+function SortableTaskRow(props: {
+  task: Task;
+  familyId: string;
+  onChange: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.task.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskRow {...props} dragHandle={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
 function TaskRow({
   task,
   familyId,
   onChange,
+  dragHandle,
 }: {
   task: Task;
   familyId: string;
   onChange: () => void;
+  dragHandle?: React.HTMLAttributes<HTMLElement>;
 }) {
   const [local, setLocal] = useState(task);
   const [uploading, setUploading] = useState(false);
@@ -211,7 +299,17 @@ function TaskRow({
   }
 
   return (
-    <div className="p-3 bg-white rounded-2xl shadow flex gap-3 items-start">
+    <div className="p-3 bg-white rounded-2xl shadow flex gap-2 items-start">
+      {dragHandle && (
+        <button
+          type="button"
+          {...dragHandle}
+          aria-label="並べ替え"
+          className="touch-none self-stretch px-2 flex items-center text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
+        >
+          ⋮⋮
+        </button>
+      )}
       <div className="flex flex-col items-center gap-1">
         {local.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
